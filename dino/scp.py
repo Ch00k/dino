@@ -5,7 +5,7 @@ from pynetdicom import AE, ALL_TRANSFER_SYNTAXES, acse, debug_logger, evt
 from pynetdicom.events import InterventionEvent
 from pynetdicom.presentation import PresentationContext
 from pynetdicom.presentation import negotiate_as_acceptor as original_negotiator
-from pynetdicom.sop_class import _STORAGE_CLASSES
+from pynetdicom.sop_class import _STORAGE_CLASSES, _VERIFICATION_CLASSES
 
 from dino import config
 
@@ -53,6 +53,10 @@ def promiscuous_negotiator(
 acse.negotiate_as_acceptor = promiscuous_negotiator
 
 
+def handle_echo(event: InterventionEvent, logger: logging.Logger = None) -> int:
+    return 0x0000
+
+
 def handle_store(event: InterventionEvent, logger: logging.Logger = None) -> int:
     return 0x0000
 
@@ -65,7 +69,9 @@ class SCP:
         self.handlers: List[Tuple] = []
 
     def create_context(self) -> None:
-        for storage_class in _STORAGE_CLASSES.values():
+        for storage_class in list(_STORAGE_CLASSES.values()) + list(
+            _VERIFICATION_CLASSES.values()
+        ):
             self.ae.add_supported_context(
                 abstract_syntax=storage_class,
                 transfer_syntax=ALL_TRANSFER_SYNTAXES,
@@ -90,6 +96,11 @@ class SCP:
 
 if __name__ == "__main__":
     scp = SCP(config.scp_host, config.scp_port, config.scp_ae_title)
+    scp.add_handler(
+        event_type=evt.EVT_C_ECHO,
+        func=handle_store,
+        args=(logging.getLogger("pynetdicom"),),
+    )
     scp.add_handler(
         event_type=evt.EVT_C_STORE,
         func=handle_store,
